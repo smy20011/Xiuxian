@@ -1,386 +1,254 @@
-use rand::{prelude::*, rng, thread_rng};
+mod emulation;
+
+use crate::emulation::player::Level;
+use bevy::{ecs::query::QueryData, prelude::*};
+use bevy_prng::WyRand;
+use bevy_rand::{global::GlobalEntropy, plugin::EntropyPlugin};
+use itertools::Itertools;
+use rand::prelude::*;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Level {
-    QiRefining = 0,    // 炼气
-    Foundation = 1,    // 筑基
-    GoldenCore = 2,    // 结丹
-    NascentSoul = 3,   // 元婴
-    SpiritTransform = 4, // 化神
-    VoidRefining = 5,  // 炼虚
-    BodyIntegration = 6, // 合体
-    Mahayana = 7,      // 大乘
-}
-
-impl Level {
-    fn name(&self) -> &'static str {
-        match self {
-            Level::QiRefining => "炼气",
-            Level::Foundation => "筑基",
-            Level::GoldenCore => "结丹",
-            Level::NascentSoul => "元婴",
-            Level::SpiritTransform => "化神",
-            Level::VoidRefining => "炼虚",
-            Level::BodyIntegration => "合体",
-            Level::Mahayana => "大乘",
-        }
-    }
-
-    fn required_cultivation(&self) -> u64 {
-        match self {
-            Level::QiRefining => 0,
-            Level::Foundation => 10,
-            Level::GoldenCore => 100,
-            Level::NascentSoul => 1000,
-            Level::SpiritTransform => 10000,
-            Level::VoidRefining => 100000,
-            Level::BodyIntegration => 1000000,
-            Level::Mahayana => 10000000,
-        }
-    }
-
-    fn base_lifespan(&self) -> u64 {
-        match self {
-            Level::QiRefining => 100,
-            Level::Foundation => 100,
-            Level::GoldenCore => 900,      // 100 + 800
-            Level::NascentSoul => 8900,    // 900 + 8000
-            Level::SpiritTransform => 88900, // 8900 + 80000
-            Level::VoidRefining => 888900,   // 88900 + 800000
-            Level::BodyIntegration => 8888900, // 888900 + 8000000
-            Level::Mahayana => 88888900,    // 8888900 + 80000000
-        }
-    }
-
-    fn next_level(&self) -> Option<Level> {
-        match self {
-            Level::QiRefining => Some(Level::Foundation),
-            Level::Foundation => Some(Level::GoldenCore),
-            Level::GoldenCore => Some(Level::NascentSoul),
-            Level::NascentSoul => Some(Level::SpiritTransform),
-            Level::SpiritTransform => Some(Level::VoidRefining),
-            Level::VoidRefining => Some(Level::BodyIntegration),
-            Level::BodyIntegration => Some(Level::Mahayana),
-            Level::Mahayana => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Cultivator {
-    id: u64,
-    level: Level,
-    cultivation: u64,
+#[derive(Component, Debug)]
+struct Life {
     age: u64,
-    remaining_lifespan: u64,
-    courage: f64, // 勇气值 0-1
+    lifespan: u64,
     alive: bool,
 }
 
-impl Cultivator {
-    fn new(id: u64, rng: &mut ThreadRng) -> Self {
-        Cultivator {
-            id,
-            level: Level::Foundation, // 新筑基修士
-            cultivation: 10, // 刚筑基
-            age: 20,
-            remaining_lifespan: 80, // 100年寿命-20岁
-            courage: rng.random::<f64>(), // 随机勇气值
-            alive: true,
+fn increase_age(query: Query<&mut Life>) {
+    for mut life in query {
+        life.age += 1
+    }
+}
+
+fn mark_death(query: Query<&mut Life>) {
+    for mut life in query {
+        if life.lifespan <= life.age {
+            life.alive = false
         }
     }
+}
 
-    fn can_advance(&self) -> bool {
-        if let Some(next_level) = self.level.next_level() {
-            self.cultivation >= next_level.required_cultivation()
-        } else {
-            false
-        }
-    }
+#[derive(Component, Debug)]
+struct Cultivation {
+    level: Level,
+    cultivation: u64,
+}
 
-    fn advance_level(&mut self) {
-        if let Some(next_level) = self.level.next_level() {
-            if self.cultivation >= next_level.required_cultivation() {
-                let old_lifespan = self.level.base_lifespan();
-                self.level = next_level;
-                let new_lifespan = self.level.base_lifespan();
-                self.remaining_lifespan += new_lifespan - old_lifespan;
+impl Cultivation {
+    fn try_advance(query: Query<(&mut Cultivation, &mut Life)>) {
+        for (mut cult, mut life) in query {
+            if let Some(next_level) = cult.level.next_level()
+                && cult.cultivation >= next_level.required_cultivation()
+            {
+                cult.level = next_level;
+                life.lifespan = next_level.total_lifespan();
             }
         }
     }
 
-    fn yearly_cultivation(&mut self) {
-        if !self.alive {
-            return;
-        }
-        
-        self.cultivation += 1;
-        self.age += 1;
-        self.remaining_lifespan = self.remaining_lifespan.saturating_sub(1);
-
-        // 检查是否可以突破
-        if self.can_advance() {
-            self.advance_level();
-        }
-
-        // 检查是否寿元耗尽
-        if self.remaining_lifespan == 0 {
-            self.alive = false;
+    fn increase_cultivation(query: Query<&mut Cultivation>) {
+        for mut cult in query {
+            cult.cultivation += 1;
         }
     }
 
-    fn calculate_win_rate(&self, opponent: &Cultivator) -> f64 {
+    fn get_win_rate(&self, opponent: &Self) -> f64 {
         self.cultivation as f64 / (self.cultivation + opponent.cultivation) as f64
     }
+}
 
-    fn wants_to_fight(&self, opponent: &Cultivator) -> bool {
-        let defeat_rate = 1.0 - self.calculate_win_rate(opponent);
-        self.courage > defeat_rate
+#[derive(Component)]
+struct Battle {
+    courage: f64,
+}
+
+#[derive(QueryData)]
+#[query_data(mutable)]
+struct BattleQuery {
+    cultivation: &'static mut Cultivation,
+    battle: &'static Battle,
+    life: &'static mut Life,
+    entity: Entity,
+}
+
+fn will_battle(a: &BattleQueryItem, b: &BattleQueryItem) -> bool {
+    let win_rate = a.cultivation.get_win_rate(&b.cultivation);
+    a.battle.courage > 1.0 - win_rate
+}
+
+fn battle(mut rng: GlobalEntropy<WyRand>, mut query: Query<BattleQuery>) {
+    let mut players: Vec<BattleQueryItem> = query.iter_mut().collect();
+    let mut battles: Vec<[usize; 2]> = Vec::new();
+    players.shuffle(&mut rng);
+
+    for i in 0..(players.len() / 2) {
+        let a = &players[i];
+        let b = &players[players.len() - i - 1];
+        if a.cultivation.level == b.cultivation.level && (will_battle(a, b) || will_battle(b, a)) {
+            battles.push([i, players.len() - i - 1]);
+        }
     }
 
-    fn absorb_cultivation(&mut self, opponent_cultivation: u64) {
-        let absorbed = opponent_cultivation / 10; // 吸收10%
-        self.cultivation += absorbed;
+    for p in battles {
+        let prob: f64 = rng.random();
+        let mut pair = p.clone();
+        if prob
+            > players[p[0]]
+                .cultivation
+                .get_win_rate(&players[p[1]].cultivation)
+        {
+            pair.reverse();
+        }
+        let [winner, loser] = players.get_disjoint_mut(pair).unwrap();
+        winner.cultivation.cultivation += loser.cultivation.cultivation / 10;
+        loser.life.alive = false;
+        if loser.cultivation.cultivation > 10000 {
+            println!("设置死亡{:?}, {:?}", loser.life, loser.cultivation);
+            println!("对手{:?}, {:?}", winner.life, winner.cultivation);
+        }
     }
 }
 
-struct World {
-    cultivators: Vec<Cultivator>,
-    next_id: u64,
-    year: u64,
-    rng: ThreadRng,
-    statistics: HashMap<Level, u64>,
+#[derive(Bundle)]
+struct Cultivator {
+    life: Life,
+    cultivation: Cultivation,
+    battle: Battle,
 }
+
+struct World {}
 
 impl World {
-    fn new() -> Self {
-        World {
-            cultivators: Vec::new(),
-            next_id: 1,
-            year: 0,
-            rng: rng(),
-            statistics: HashMap::new(),
+    fn spawn_cultivators(mut command: Commands, mut rng: GlobalEntropy<WyRand>) {
+        for _ in 0..100 {
+            command.spawn(Cultivator {
+                life: Life {
+                    age: 20,
+                    lifespan: 100,
+                    alive: true,
+                },
+                cultivation: Cultivation {
+                    level: Level::Foundation,
+                    cultivation: 10,
+                },
+                battle: Battle {
+                    courage: rng.random(),
+                },
+            });
         }
     }
 
-    fn add_new_cultivators(&mut self) {
-        // 每年1000人筑基成功
-        for _ in 0..1000 {
-            let cultivator = Cultivator::new(self.next_id, &mut self.rng);
-            self.cultivators.push(cultivator);
-            self.next_id += 1;
-        }
-    }
-
-    fn encounter_and_battle(&mut self) {
-        let mut battles = Vec::new();
-        
-        // 统计各境界修士数量
-        let mut level_counts = HashMap::new();
-        let total_cultivators = self.cultivators.iter().filter(|c| c.alive).count() as u64;
-        
-        for cultivator in &self.cultivators {
-            if cultivator.alive {
-                *level_counts.entry(cultivator.level).or_insert(0) += 1;
-            }
-        }
-
-        // 计算遭遇概率并安排战斗
-        for i in 0..self.cultivators.len() {
-            if !self.cultivators[i].alive {
-                continue;
-            }
-            
-            let level = self.cultivators[i].level;
-            let nk = level_counts.get(&level).unwrap_or(&0);
-            let encounter_probability = (*nk as f64) / (total_cultivators as f64);
-            
-            if self.rng.random::<f64>() < encounter_probability {
-                // 寻找同级对手
-                let mut possible_opponents = Vec::new();
-                for j in 0..self.cultivators.len() {
-                    if i != j && self.cultivators[j].alive && self.cultivators[j].level == level {
-                        possible_opponents.push(j);
-                    }
-                }
-                
-                if !possible_opponents.is_empty() {
-                    let opponent_idx = possible_opponents[self.rng.gen_range(0..possible_opponents.len())];
-                    battles.push((i, opponent_idx));
-                }
-            }
-        }
-
-        // 执行战斗
-        let mut defeated = Vec::new();
-        for (idx1, idx2) in battles {
-            if defeated.contains(&idx1) || defeated.contains(&idx2) {
-                continue; // 已经死亡的修士不能再战斗
-            }
-            
-            let wants_fight_1 = self.cultivators[idx1].wants_to_fight(&self.cultivators[idx2]);
-            let wants_fight_2 = self.cultivators[idx2].wants_to_fight(&self.cultivators[idx1]);
-            
-            if wants_fight_1 || wants_fight_2 {
-                let win_rate_1 = self.cultivators[idx1].calculate_win_rate(&self.cultivators[idx2]);
-                let battle_result = self.rng.random::<f64>();
-                
-                if battle_result < win_rate_1 {
-                    // idx1 胜利
-                    let opponent_cultivation = self.cultivators[idx2].cultivation;
-                    self.cultivators[idx1].absorb_cultivation(opponent_cultivation);
-                    self.cultivators[idx2].alive = false;
-                    defeated.push(idx2);
-                    // println!("战斗！修士{}({})击败修士{}({})", 
-                    //     self.cultivators[idx1].id, self.cultivators[idx1].level.name(),
-                    //     self.cultivators[idx2].id, self.cultivators[idx2].level.name());
-                } else {
-                    // idx2 胜利
-                    let opponent_cultivation = self.cultivators[idx1].cultivation;
-                    self.cultivators[idx2].absorb_cultivation(opponent_cultivation);
-                    self.cultivators[idx1].alive = false;
-                    defeated.push(idx1);
-                 //    println!("战斗！修士{}({})击败修士{}({})", 
-                 //        self.cultivators[idx2].id, self.cultivators[idx2].level.name(),
-                 //        self.cultivators[idx1].id, self.cultivators[idx1].level.name());
-                } 
+    fn despawn_dead(mut commands: Commands, query: Query<(Entity, CultivatorQuery)>) {
+        for (entity, c) in query {
+            if !c.life.alive {
+                commands.entity(entity).despawn();
             }
         }
     }
+}
 
-    fn yearly_cultivation(&mut self) {
-        for cultivator in &mut self.cultivators {
-            cultivator.yearly_cultivation();
+#[derive(Resource, Default)]
+struct GlobalState {
+    year: u64,
+}
+
+fn increase_year(mut state: ResMut<GlobalState>) {
+    state.year += 1;
+}
+
+#[derive(QueryData)]
+struct CultivatorQuery {
+    life: &'static Life,
+    cultivation: &'static Cultivation,
+    battle: &'static Battle,
+}
+
+#[derive(Default, Debug)]
+struct PerGroupStatistics {
+    size: usize,
+    courage: f64,
+    cultivation: f64,
+}
+
+impl PerGroupStatistics {
+    fn new<'a, T: IntoIterator<Item = &'a CultivatorQueryItem<'a>>>(
+        cultivators: T,
+    ) -> PerGroupStatistics {
+        let mut result = PerGroupStatistics::default();
+        for cult in cultivators {
+            result.size += 1;
+            result.courage += cult.battle.courage;
+            result.cultivation += cult.cultivation.cultivation as f64;
         }
+        result.courage /= result.size as f64;
+        result.cultivation /= result.size as f64;
+        result
     }
+}
 
-    fn update_statistics(&mut self) {
-        self.statistics.clear();
-        for cultivator in &self.cultivators {
-            if cultivator.alive {
-                *self.statistics.entry(cultivator.level).or_insert(0) += 1;
-            }
-        }
-    }
+#[derive(Resource, Default, Debug)]
+struct XiuxianStatistics {
+    per_level_stat: HashMap<Level, PerGroupStatistics>,
+    global_stat: PerGroupStatistics,
+}
 
-    fn calculate_average_courage_by_level(&self) -> HashMap<Level, (f64, u64)> {
-        let mut level_courage_sum = HashMap::new();
-        let mut level_count = HashMap::new();
-        
-        for cultivator in &self.cultivators {
-            if cultivator.alive {
-                let level = cultivator.level;
-                *level_courage_sum.entry(level).or_insert(0.0) += cultivator.courage;
-                *level_count.entry(level).or_insert(0) += 1;
-            }
-        }
-        
-        let mut averages = HashMap::new();
-        for (level, sum) in level_courage_sum {
-            let count = level_count[&level];
-            let average = sum / count as f64;
-            averages.insert(level, (average, count));
-        }
-        
-        averages
-    }
+fn update_stats(query: Query<CultivatorQuery>, mut stats: ResMut<XiuxianStatistics>) {
+    let cultivators: Vec<CultivatorQueryItem> = query.iter().collect();
+    stats.global_stat = PerGroupStatistics::new(&cultivators);
+    stats.per_level_stat = cultivators
+        .iter()
+        .into_group_map_by(|i| i.cultivation.level)
+        .into_iter()
+        .map(|(l, c)| (l, PerGroupStatistics::new(c)))
+        .collect();
+}
 
-    fn calculate_overall_average_courage(&self) -> (f64, u64) {
-        let alive_cultivators: Vec<_> = self.cultivators.iter()
-            .filter(|c| c.alive)
-            .collect();
-        
-        if alive_cultivators.is_empty() {
-            return (0.0, 0);
-        }
-        
-        let total_courage: f64 = alive_cultivators.iter()
-            .map(|c| c.courage)
-            .sum();
-        
-        let count = alive_cultivators.len() as u64;
-        (total_courage / count as f64, count)
-    }
+fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
+    if state.year % 10 == 0 {
+        println!(
+            "现在是第{}年，现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
+            state.year,
+            stats.global_stat.size,
+            stats.global_stat.courage,
+            stats.global_stat.cultivation
+        );
 
-    fn print_statistics(&self) {
-        println!("\n=== 第{}年统计 ===", self.year);
-        let mut total = 0;
-        let courage_by_level = self.calculate_average_courage_by_level();
-        
-        for level in [Level::Foundation, Level::GoldenCore, Level::NascentSoul, 
-                     Level::SpiritTransform, Level::VoidRefining, Level::BodyIntegration, Level::Mahayana] {
-            let count = self.statistics.get(&level).unwrap_or(&0);
-            if *count > 0 {
-                let (avg_courage, _) = courage_by_level.get(&level).unwrap_or(&(0.0, 0));
-                println!("{}期修士：{}人 (平均勇气值: {:.3})", 
-                    level.name(), count, avg_courage);
-                total += count;
-            }
+        for (level, stat) in stats.per_level_stat.iter().sorted_by_key(|i| i.0) {
+            println!(
+                "修为{}, 现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
+                level.name(),
+                stat.size,
+                stat.courage,
+                stat.cultivation
+            );
         }
-        println!("总修士数：{}人", total);
-        
-        // 显示总体平均勇气值
-        let (overall_avg_courage, total_count) = self.calculate_overall_average_courage();
-        if total_count > 0 {
-            println!("所有修士平均勇气值: {:.3}", overall_avg_courage);
-        }
-        
-        // 显示一些高级修士的详细信息
-        let high_level_cultivators: Vec<_> = self.cultivators.iter()
-            .filter(|c| c.alive && c.level as u8 >= Level::NascentSoul as u8)
-            .collect();
-        
-        if !high_level_cultivators.is_empty() {
-            println!("\n高阶修士详情：");
-            for cultivator in high_level_cultivators.iter().take(5) {
-                println!("修士{}: {}期, 修为:{}, 年龄:{}, 剩余寿元:{}, 勇气值:{:.3}", 
-                    cultivator.id, cultivator.level.name(), 
-                    cultivator.cultivation, cultivator.age, cultivator.remaining_lifespan,
-                    cultivator.courage);
-            }
-        }
-    }
-
-    fn simulate_year(&mut self) {
-        self.year += 1;
-        
-        // 1. 新修士筑基
-        self.add_new_cultivators();
-        
-        // 2. 所有修士修炼
-        self.yearly_cultivation();
-        
-        // 3. 遭遇战斗
-        self.encounter_and_battle();
-        
-        // 4. 清理死亡修士
-        self.cultivators.retain(|c| c.alive);
-        
-        // 5. 更新统计
-        self.update_statistics();
-        
-        // 6. 每10年显示一次统计
-        if self.year % 10 == 0 {
-            self.print_statistics();
-        }
-    }
-
-    fn simulate(&mut self, years: u64) {
-        println!("开始模拟修仙世界，模拟{}年...\n", years);
-        
-        for _ in 0..years {
-            self.simulate_year();
-        }
-        
-        println!("\n=== 模拟结束 ===");
-        self.print_statistics();
     }
 }
 
 fn main() {
-    let mut world = World::new();
-    
-    // 模拟10000年
-    world.simulate(10000);
+    App::new()
+        .add_plugins(MinimalPlugins)
+        .add_plugins(EntropyPlugin::<WyRand>::default())
+        .init_resource::<XiuxianStatistics>()
+        .init_resource::<GlobalState>()
+        .add_systems(
+            Update,
+            (
+                World::spawn_cultivators,
+                (
+                    increase_age,
+                    increase_year,
+                    Cultivation::increase_cultivation,
+                ),
+                battle,
+                Cultivation::try_advance,
+                mark_death,
+                World::despawn_dead,
+                update_stats,
+                print_stats,
+            )
+                .chain(),
+        )
+        .run();
 }
