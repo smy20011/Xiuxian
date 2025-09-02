@@ -1,33 +1,19 @@
-mod emulation;
+mod level;
+mod life;
+mod system;
 
-use crate::emulation::player::Level;
-use bevy::{ecs::query::QueryData, prelude::*};
+use crate::level::Level;
+use crate::life::Life;
+
+use bevy::{ecs::query::QueryData, prelude::*, time::common_conditions::on_timer};
+use bevy_diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_prng::WyRand;
 use bevy_rand::{global::GlobalEntropy, plugin::EntropyPlugin};
 use itertools::Itertools;
+use life::life_plugin;
 use rand::prelude::*;
-use std::collections::HashMap;
-
-#[derive(Component, Debug)]
-struct Life {
-    age: u64,
-    lifespan: u64,
-    alive: bool,
-}
-
-fn increase_age(query: Query<&mut Life>) {
-    for mut life in query {
-        life.age += 1
-    }
-}
-
-fn mark_death(query: Query<&mut Life>) {
-    for mut life in query {
-        if life.lifespan <= life.age {
-            life.alive = false
-        }
-    }
-}
+use std::{collections::HashMap, time::Duration};
+use system::{game_system, GamePlay};
 
 #[derive(Component, Debug)]
 struct Cultivation {
@@ -103,10 +89,6 @@ fn battle(mut rng: GlobalEntropy<WyRand>, mut query: Query<BattleQuery>) {
         let [winner, loser] = players.get_disjoint_mut(pair).unwrap();
         winner.cultivation.cultivation += loser.cultivation.cultivation / 10;
         loser.life.alive = false;
-        if loser.cultivation.cultivation > 10000 {
-            println!("设置死亡{:?}, {:?}", loser.life, loser.cultivation);
-            println!("对手{:?}, {:?}", winner.life, winner.cultivation);
-        }
     }
 }
 
@@ -205,24 +187,40 @@ fn update_stats(query: Query<CultivatorQuery>, mut stats: ResMut<XiuxianStatisti
 }
 
 fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
-    if state.year % 10 == 0 {
-        println!(
-            "现在是第{}年，现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
-            state.year,
-            stats.global_stat.size,
-            stats.global_stat.courage,
-            stats.global_stat.cultivation
-        );
+    println!(
+        "现在是第{}年，现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
+        state.year,
+        stats.global_stat.size,
+        stats.global_stat.courage,
+        stats.global_stat.cultivation
+    );
 
-        for (level, stat) in stats.per_level_stat.iter().sorted_by_key(|i| i.0) {
-            println!(
-                "修为{}, 现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
-                level.name(),
-                stat.size,
-                stat.courage,
-                stat.cultivation
-            );
-        }
+    for (level, stat) in stats.per_level_stat.iter().sorted_by_key(|i| i.0) {
+        println!(
+            "修为{}, 现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
+            level.name(),
+            stat.size,
+            stat.courage,
+            stat.cultivation
+        );
+    }
+}
+
+#[derive(Resource)]
+struct Benchmark {
+    timer: Timer,
+    cycles: u64,
+}
+
+fn print_benchmark(mut benchmark: ResMut<Benchmark>, time: Res<Time>) {
+    benchmark.timer.tick(time.delta());
+    benchmark.cycles += 1;
+    if benchmark.timer.just_finished() {
+        println!(
+            "循环速度: {:.3}/sec",
+            benchmark.cycles as f64 / benchmark.timer.duration().as_secs_f64()
+        );
+        benchmark.cycles = 0;
     }
 }
 
@@ -230,25 +228,31 @@ fn main() {
     App::new()
         .add_plugins(MinimalPlugins)
         .add_plugins(EntropyPlugin::<WyRand>::default())
+        .add_plugins(game_system)
+        .add_plugins(life_plugin)
+        .insert_resource(Benchmark {
+            timer: Timer::new(Duration::from_secs(3), TimerMode::Repeating),
+            cycles: 0,
+        })
+        // .insert_resource(Time::<Fixed>::from_hz(5000.0))
         .init_resource::<XiuxianStatistics>()
         .init_resource::<GlobalState>()
         .add_systems(
             Update,
             (
-                World::spawn_cultivators,
                 (
-                    increase_age,
-                    increase_year,
-                    Cultivation::increase_cultivation,
-                ),
-                battle,
-                Cultivation::try_advance,
-                mark_death,
-                World::despawn_dead,
-                update_stats,
-                print_stats,
-            )
-                .chain(),
+                    World::spawn_cultivators,
+                    (increase_year, Cultivation::increase_cultivation),
+                ).in_set(GamePlay::PreBattle),
+                battle.in_set(GamePlay::Battle),
+                (
+                    Cultivation::try_advance,
+                    World::despawn_dead,
+                    update_stats,
+                    print_stats.run_if(on_timer(Duration::from_secs(3))),
+                    print_benchmark,
+                ).chain().in_set(GamePlay::AfterBattle),
+            ),
         )
         .run();
 }
