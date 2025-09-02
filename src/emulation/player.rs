@@ -41,12 +41,12 @@ impl Level {
         match self {
             Level::QiRefining => 100,
             Level::Foundation => 100,
-            Level::GoldenCore => 1000,
-            Level::NascentSoul => 10000,
-            Level::SpiritTransform => 100000,
-            Level::VoidRefining => 1000000,
-            Level::BodyIntegration => 10000000,
-            Level::Mahayana => 1000000000,
+            Level::GoldenCore => 900,          // 100 + 800
+            Level::NascentSoul => 8900,        // 900 + 8000
+            Level::SpiritTransform => 88900,   // 8900 + 80000
+            Level::VoidRefining => 888900,     // 88900 + 800000
+            Level::BodyIntegration => 8888900, // 888900 + 8000000
+            Level::Mahayana => 88888900,       // 8888900 + 80000000
         }
     }
 
