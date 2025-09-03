@@ -1,62 +1,26 @@
+mod battle;
+mod benchmark;
 mod cultivation;
 mod level;
 mod life;
+mod spawn;
 mod system;
-mod battle;
 
+use crate::cultivation::Cultivation;
 use crate::level::Level;
 use crate::life::Life;
-use crate::cultivation::Cultivation;
 
-use battle::{battle_plugin, Battle};
+use battle::{Battle, battle_plugin};
+use benchmark::benchmark_system;
 use bevy::{ecs::query::QueryData, prelude::*, time::common_conditions::on_timer};
-use bevy_diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_prng::WyRand;
-use bevy_rand::{global::GlobalEntropy, plugin::EntropyPlugin};
+use bevy_rand::plugin::EntropyPlugin;
 use cultivation::cultivation_plugin;
 use itertools::Itertools;
 use life::life_plugin;
-use rand::prelude::*;
+use spawn::spawn_plugin;
 use std::{collections::HashMap, time::Duration};
 use system::{GamePlay, game_system};
-
-#[derive(Bundle)]
-struct Cultivator {
-    life: Life,
-    cultivation: Cultivation,
-    battle: Battle,
-}
-
-struct World {}
-
-impl World {
-    fn spawn_cultivators(mut command: Commands, mut rng: GlobalEntropy<WyRand>) {
-        for _ in 0..100 {
-            command.spawn(Cultivator {
-                life: Life {
-                    age: 20,
-                    lifespan: 100,
-                    alive: true,
-                },
-                cultivation: Cultivation {
-                    level: Level::Foundation,
-                    cultivation: 10,
-                },
-                battle: Battle {
-                    courage: rng.random(),
-                },
-            });
-        }
-    }
-
-    fn despawn_dead(mut commands: Commands, query: Query<(Entity, CultivatorQuery)>) {
-        for (entity, c) in query {
-            if !c.life.alive {
-                commands.entity(entity).despawn();
-            }
-        }
-    }
-}
 
 #[derive(Resource, Default)]
 struct GlobalState {
@@ -134,24 +98,6 @@ fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
     }
 }
 
-#[derive(Resource)]
-struct Benchmark {
-    timer: Timer,
-    cycles: u64,
-}
-
-fn print_benchmark(mut benchmark: ResMut<Benchmark>, time: Res<Time>) {
-    benchmark.timer.tick(time.delta());
-    benchmark.cycles += 1;
-    if benchmark.timer.just_finished() {
-        println!(
-            "循环速度: {:.3}/sec",
-            benchmark.cycles as f64 / benchmark.timer.duration().as_secs_f64()
-        );
-        benchmark.cycles = 0;
-    }
-}
-
 fn main() {
     App::new()
         .add_plugins(MinimalPlugins)
@@ -160,27 +106,17 @@ fn main() {
         .add_plugins(life_plugin)
         .add_plugins(cultivation_plugin)
         .add_plugins(battle_plugin)
-        .insert_resource(Benchmark {
-            timer: Timer::new(Duration::from_secs(3), TimerMode::Repeating),
-            cycles: 0,
-        })
-        // .insert_resource(Time::<Fixed>::from_hz(5000.0))
+        .add_plugins(spawn_plugin)
+        .add_plugins(benchmark_system)
         .init_resource::<XiuxianStatistics>()
         .init_resource::<GlobalState>()
         .add_systems(
             Update,
             (
-                (
-                    World::spawn_cultivators,
-                    increase_year
-                )
-                    .in_set(GamePlay::PreBattle),
-                (
-                    World::despawn_dead,
-                    (update_stats, print_stats).chain().run_if(on_timer(Duration::from_secs(3))),
-                    print_benchmark,
-                )
+                (increase_year).in_set(GamePlay::PreBattle),
+                (update_stats, print_stats)
                     .chain()
+                    .run_if(on_timer(Duration::from_secs(3)))
                     .in_set(GamePlay::AfterBattle),
             ),
         )

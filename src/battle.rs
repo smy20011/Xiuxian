@@ -1,12 +1,12 @@
 use bevy::{ecs::query::QueryData, prelude::*};
 use bevy_prng::WyRand;
 use bevy_rand::global::GlobalEntropy;
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
 
-use crate::system::GamePlay;
 use crate::cultivation::Cultivation;
 use crate::life::Life;
+use crate::system::GamePlay;
 
 #[derive(Component)]
 pub struct Battle {
@@ -55,7 +55,6 @@ fn battle(mut rng: GlobalEntropy<WyRand>, mut query: Query<BattleQuery>) {
         loser.life.alive = false;
     }
 }
-
 
 pub fn battle_plugin(app: &mut App) {
     app.add_systems(Update, battle.in_set(GamePlay::Battle));
