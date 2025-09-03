@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::system::GamePlay;
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct Life {
     pub age: u64,
     pub lifespan: u64,

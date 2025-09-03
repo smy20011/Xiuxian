@@ -1,10 +1,15 @@
-use bevy::{ecs::query::QueryData, prelude::*, time::common_conditions::on_timer};
+use bevy::prelude::*;
+use bevy::{ecs::query::QueryData, time::common_conditions::on_timer};
+use bevy_prng::WyRand;
+use bevy_rand::global::GlobalEntropy;
 use itertools::Itertools;
+use rand::seq::IteratorRandom;
 use std::{collections::HashMap, time::Duration};
 
 use crate::cultivation::Cultivation;
 use crate::level::Level;
 use crate::life::Life;
+use crate::spawn::DeathEvent;
 use crate::system::GamePlay;
 use crate::battle::Battle;
 
@@ -51,6 +56,10 @@ impl PerGroupStatistics {
 struct XiuxianStatistics {
     per_level_stat: HashMap<Level, PerGroupStatistics>,
     global_stat: PerGroupStatistics,
+    death_age: Vec<u64>,
+    total_death: u64,
+    death_by_battle: u64,
+    death_by_age: u64,
 }
 
 fn update_stats(query: Query<CultivatorQuery>, mut stats: ResMut<XiuxianStatistics>) {
@@ -82,6 +91,25 @@ fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
             stat.cultivation
         );
     }
+    let total_death = stats.death_age.len();
+    let sum: u64 = stats.death_age.iter().sum();
+    info!("死亡人数: {}，平均寿命: {}", stats.total_death, sum as f64/ total_death as f64);
+    info!("战斗死亡: {}，年老死亡: {}", stats.death_by_battle, stats.death_by_age);
+}
+
+fn collect_death(mut ev_death: EventReader<DeathEvent>, mut stats: ResMut<XiuxianStatistics>, mut rng: GlobalEntropy<WyRand>) {
+    for ev in ev_death.read() {
+        stats.death_age.push(ev.life.age);
+        stats.total_death += 1;
+        if ev.life.lifespan == ev.life.age {
+            stats.death_by_age += 1;
+        } else {
+            stats.death_by_battle += 1;
+        }
+    }
+    if stats.death_age.len() > 2000 {
+        stats.death_age = stats.death_age.iter().cloned().choose_multiple(&mut rng, 1000);
+    }
 }
 
 pub fn stat_plugin(app: &mut App) {
@@ -90,7 +118,7 @@ pub fn stat_plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                (increase_year).in_set(GamePlay::PreBattle),
+                (increase_year, collect_death).in_set(GamePlay::PreBattle),
                 (update_stats, print_stats)
                     .chain()
                     .run_if(on_timer(Duration::from_secs(3)))

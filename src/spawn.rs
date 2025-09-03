@@ -16,6 +16,11 @@ struct Cultivator {
     battle: Battle,
 }
 
+#[derive(Event)]
+pub struct DeathEvent {
+    pub life: Life,
+}
+
 fn spawn_cultivators(mut command: Commands, mut rng: GlobalEntropy<WyRand>) {
     for _ in 0..100 {
         command.spawn(Cultivator {
@@ -35,15 +40,17 @@ fn spawn_cultivators(mut command: Commands, mut rng: GlobalEntropy<WyRand>) {
     }
 }
 
-fn despawn_dead(mut commands: Commands, query: Query<(Entity, &Life)>) {
+fn despawn_dead(mut commands: Commands, query: Query<(Entity, &Life)>, mut ev_death: EventWriter<DeathEvent>) {
     for (entity, life) in query {
         if !life.alive {
             commands.entity(entity).despawn();
+            ev_death.write(DeathEvent { life: life.clone() });
         }
     }
 }
 
 pub fn spawn_plugin(app: &mut App) {
+    app.add_event::<DeathEvent>();
     app.add_systems(
         Update,
         (
