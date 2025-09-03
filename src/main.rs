@@ -223,8 +223,7 @@ fn main() {
                 battle.in_set(GamePlay::Battle),
                 (
                     World::despawn_dead,
-                    update_stats,
-                    print_stats.run_if(on_timer(Duration::from_secs(3))),
+                    (update_stats, print_stats).chain().run_if(on_timer(Duration::from_secs(3))),
                     print_benchmark,
                 )
                     .chain()
