@@ -2,11 +2,13 @@ mod cultivation;
 mod level;
 mod life;
 mod system;
+mod battle;
 
 use crate::level::Level;
 use crate::life::Life;
 use crate::cultivation::Cultivation;
 
+use battle::{battle_plugin, Battle};
 use bevy::{ecs::query::QueryData, prelude::*, time::common_conditions::on_timer};
 use bevy_diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_prng::WyRand;
@@ -17,54 +19,6 @@ use life::life_plugin;
 use rand::prelude::*;
 use std::{collections::HashMap, time::Duration};
 use system::{GamePlay, game_system};
-
-#[derive(Component)]
-struct Battle {
-    courage: f64,
-}
-
-#[derive(QueryData)]
-#[query_data(mutable)]
-struct BattleQuery {
-    cultivation: &'static mut Cultivation,
-    battle: &'static Battle,
-    life: &'static mut Life,
-    entity: Entity,
-}
-
-fn will_battle(a: &BattleQueryItem, b: &BattleQueryItem) -> bool {
-    let win_rate = a.cultivation.get_win_rate(&b.cultivation);
-    a.battle.courage > 1.0 - win_rate
-}
-
-fn battle(mut rng: GlobalEntropy<WyRand>, mut query: Query<BattleQuery>) {
-    let mut players: Vec<BattleQueryItem> = query.iter_mut().collect();
-    let mut battles: Vec<[usize; 2]> = Vec::new();
-    players.shuffle(&mut rng);
-
-    for i in 0..(players.len() / 2) {
-        let a = &players[i];
-        let b = &players[players.len() - i - 1];
-        if a.cultivation.level == b.cultivation.level && (will_battle(a, b) || will_battle(b, a)) {
-            battles.push([i, players.len() - i - 1]);
-        }
-    }
-
-    for p in battles {
-        let prob: f64 = rng.random();
-        let mut pair = p.clone();
-        if prob
-            > players[p[0]]
-                .cultivation
-                .get_win_rate(&players[p[1]].cultivation)
-        {
-            pair.reverse();
-        }
-        let [winner, loser] = players.get_disjoint_mut(pair).unwrap();
-        winner.cultivation.cultivation += loser.cultivation.cultivation / 10;
-        loser.life.alive = false;
-    }
-}
 
 #[derive(Bundle)]
 struct Cultivator {
@@ -205,6 +159,7 @@ fn main() {
         .add_plugins(game_system)
         .add_plugins(life_plugin)
         .add_plugins(cultivation_plugin)
+        .add_plugins(battle_plugin)
         .insert_resource(Benchmark {
             timer: Timer::new(Duration::from_secs(3), TimerMode::Repeating),
             cycles: 0,
@@ -220,7 +175,6 @@ fn main() {
                     increase_year
                 )
                     .in_set(GamePlay::PreBattle),
-                battle.in_set(GamePlay::Battle),
                 (
                     World::despawn_dead,
                     (update_stats, print_stats).chain().run_if(on_timer(Duration::from_secs(3))),
