@@ -65,7 +65,7 @@ fn update_stats(query: Query<CultivatorQuery>, mut stats: ResMut<XiuxianStatisti
 }
 
 fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
-    println!(
+    info!(
         "现在是第{}年，现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
         state.year,
         stats.global_stat.size,
@@ -74,7 +74,7 @@ fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
     );
 
     for (level, stat) in stats.per_level_stat.iter().sorted_by_key(|i| i.0) {
-        println!(
+        info!(
             "修为{}, 现有修士{}名，平均勇气值{:.3}，平均修为{:.3}",
             level.name(),
             stat.size,

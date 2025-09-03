@@ -13,7 +13,7 @@ use crate::life::Life;
 
 use battle::{Battle, battle_plugin};
 use benchmark::benchmark_system;
-use bevy::prelude::*;
+use bevy::{log::LogPlugin, prelude::*};
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
 use cultivation::cultivation_plugin;
@@ -25,6 +25,7 @@ use system::game_system;
 fn main() {
     App::new()
         .add_plugins(MinimalPlugins)
+        .add_plugins(LogPlugin::default())
         .add_plugins(EntropyPlugin::<WyRand>::default())
         .add_plugins(game_system)
         .add_plugins(life_plugin)

@@ -14,7 +14,7 @@ fn print_benchmark(mut benchmark: ResMut<Benchmark>, time: Res<Time>) {
     benchmark.timer.tick(time.delta());
     benchmark.cycles += 1;
     if benchmark.timer.just_finished() {
-        println!(
+        info!(
             "循环速度: {:.3}/sec",
             benchmark.cycles as f64 / benchmark.timer.duration().as_secs_f64()
         );
