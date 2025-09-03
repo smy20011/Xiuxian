@@ -1,48 +1,22 @@
+mod cultivation;
 mod level;
 mod life;
 mod system;
 
 use crate::level::Level;
 use crate::life::Life;
+use crate::cultivation::Cultivation;
 
 use bevy::{ecs::query::QueryData, prelude::*, time::common_conditions::on_timer};
 use bevy_diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_prng::WyRand;
 use bevy_rand::{global::GlobalEntropy, plugin::EntropyPlugin};
+use cultivation::cultivation_plugin;
 use itertools::Itertools;
 use life::life_plugin;
 use rand::prelude::*;
 use std::{collections::HashMap, time::Duration};
-use system::{game_system, GamePlay};
-
-#[derive(Component, Debug)]
-struct Cultivation {
-    level: Level,
-    cultivation: u64,
-}
-
-impl Cultivation {
-    fn try_advance(query: Query<(&mut Cultivation, &mut Life)>) {
-        for (mut cult, mut life) in query {
-            if let Some(next_level) = cult.level.next_level()
-                && cult.cultivation >= next_level.required_cultivation()
-            {
-                cult.level = next_level;
-                life.lifespan = next_level.total_lifespan();
-            }
-        }
-    }
-
-    fn increase_cultivation(query: Query<&mut Cultivation>) {
-        for mut cult in query {
-            cult.cultivation += 1;
-        }
-    }
-
-    fn get_win_rate(&self, opponent: &Self) -> f64 {
-        self.cultivation as f64 / (self.cultivation + opponent.cultivation) as f64
-    }
-}
+use system::{GamePlay, game_system};
 
 #[derive(Component)]
 struct Battle {
@@ -230,6 +204,7 @@ fn main() {
         .add_plugins(EntropyPlugin::<WyRand>::default())
         .add_plugins(game_system)
         .add_plugins(life_plugin)
+        .add_plugins(cultivation_plugin)
         .insert_resource(Benchmark {
             timer: Timer::new(Duration::from_secs(3), TimerMode::Repeating),
             cycles: 0,
@@ -242,16 +217,18 @@ fn main() {
             (
                 (
                     World::spawn_cultivators,
-                    (increase_year, Cultivation::increase_cultivation),
-                ).in_set(GamePlay::PreBattle),
+                    increase_year
+                )
+                    .in_set(GamePlay::PreBattle),
                 battle.in_set(GamePlay::Battle),
                 (
-                    Cultivation::try_advance,
                     World::despawn_dead,
                     update_stats,
                     print_stats.run_if(on_timer(Duration::from_secs(3))),
                     print_benchmark,
-                ).chain().in_set(GamePlay::AfterBattle),
+                )
+                    .chain()
+                    .in_set(GamePlay::AfterBattle),
             ),
         )
         .run();
