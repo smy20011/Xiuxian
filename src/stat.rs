@@ -1,17 +1,15 @@
 use bevy::prelude::*;
 use bevy::{ecs::query::QueryData, time::common_conditions::on_timer};
-use bevy_prng::WyRand;
-use bevy_rand::global::GlobalEntropy;
+use core::f64;
 use itertools::Itertools;
-use rand::seq::IteratorRandom;
 use std::{collections::HashMap, time::Duration};
 
+use crate::battle::Battle;
 use crate::cultivation::Cultivation;
 use crate::level::Level;
 use crate::life::Life;
 use crate::spawn::DeathEvent;
 use crate::system::GamePlay;
-use crate::battle::Battle;
 
 #[derive(Resource, Default)]
 struct GlobalState {
@@ -52,14 +50,27 @@ impl PerGroupStatistics {
     }
 }
 
+
+#[derive(Debug, Default)]
+struct Average {
+    total: usize,
+    average: f64,
+}
+
+impl Average {
+    fn digiest(&mut self, data: f64) {
+        self.average = (self.average * self.total as f64 + data) / (self.total + 1) as f64;
+        self.total += 1;
+    }
+}
+
 #[derive(Resource, Default, Debug)]
 struct XiuxianStatistics {
     per_level_stat: HashMap<Level, PerGroupStatistics>,
     global_stat: PerGroupStatistics,
-    death_age: Vec<u64>,
-    total_death: u64,
-    death_by_battle: u64,
-    death_by_age: u64,
+    death: Average,
+    death_by_battle: Average,
+    death_by_age: Average,
 }
 
 fn update_stats(query: Query<CultivatorQuery>, mut stats: ResMut<XiuxianStatistics>) {
@@ -91,24 +102,34 @@ fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
             stat.cultivation
         );
     }
-    let total_death = stats.death_age.len();
-    let sum: u64 = stats.death_age.iter().sum();
-    info!("死亡人数: {}，平均寿命: {}", stats.total_death, sum as f64/ total_death as f64);
-    info!("战斗死亡: {}，年老死亡: {}", stats.death_by_battle, stats.death_by_age);
+    info!(
+        "死亡人数: {}，平均寿命: {}",
+        stats.death.total,
+        stats.death.average
+    );
+    info!(
+        "战斗死亡: {}，平均寿命: {}",
+        stats.death_by_battle.total, stats.death_by_battle.average
+    );
+    info!(
+        "年老死亡: {}，平均寿命: {}",
+        stats.death_by_age.total, stats.death_by_age.average
+    );
+
 }
 
-fn collect_death(mut ev_death: EventReader<DeathEvent>, mut stats: ResMut<XiuxianStatistics>, mut rng: GlobalEntropy<WyRand>) {
+fn collect_death(
+    mut ev_death: EventReader<DeathEvent>,
+    mut stats: ResMut<XiuxianStatistics>,
+) {
     for ev in ev_death.read() {
-        stats.death_age.push(ev.life.age);
-        stats.total_death += 1;
+        let age = ev.life.age as f64;
+        stats.death.digiest(age);
         if ev.life.lifespan == ev.life.age {
-            stats.death_by_age += 1;
+            stats.death_by_age.digiest(age);
         } else {
-            stats.death_by_battle += 1;
+            stats.death_by_battle.digiest(age);
         }
-    }
-    if stats.death_age.len() > 2000 {
-        stats.death_age = stats.death_age.iter().cloned().choose_multiple(&mut rng, 1000);
     }
 }
 

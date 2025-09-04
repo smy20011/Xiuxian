@@ -40,7 +40,11 @@ fn spawn_cultivators(mut command: Commands, mut rng: GlobalEntropy<WyRand>) {
     }
 }
 
-fn despawn_dead(mut commands: Commands, query: Query<(Entity, &Life)>, mut ev_death: EventWriter<DeathEvent>) {
+fn despawn_dead(
+    mut commands: Commands,
+    query: Query<(Entity, &Life)>,
+    mut ev_death: EventWriter<DeathEvent>,
+) {
     for (entity, life) in query {
         if !life.alive {
             commands.entity(entity).despawn();
