@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-
 use crate::system::GamePlay;
 
 #[derive(Resource)]
@@ -27,5 +26,5 @@ pub fn benchmark_system(app: &mut App) {
         timer: Timer::new(Duration::from_secs(3), TimerMode::Repeating),
         cycles: 0,
     })
-    .add_systems(Update, print_benchmark.in_set(GamePlay::AfterBattle));
+    .add_systems(Update, print_benchmark.in_set(GamePlay::Finish));
 }

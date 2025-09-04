@@ -58,8 +58,8 @@ pub fn spawn_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            spawn_cultivators.in_set(GamePlay::PreBattle),
-            despawn_dead.in_set(GamePlay::AfterBattle),
+            spawn_cultivators.in_set(GamePlay::Spawn),
+            despawn_dead.in_set(GamePlay::Finish),
         ),
     );
 }

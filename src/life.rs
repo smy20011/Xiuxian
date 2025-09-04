@@ -21,5 +21,5 @@ impl Life {
 }
 
 pub fn life_plugin(app: &mut App) {
-    app.add_systems(Update, Life::increase_age.in_set(GamePlay::AfterBattle));
+    app.add_systems(Update, Life::increase_age.in_set(GamePlay::Finish));
 }

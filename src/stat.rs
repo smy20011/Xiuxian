@@ -139,11 +139,11 @@ pub fn stat_plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                (increase_year, collect_death).in_set(GamePlay::PreBattle),
+                (increase_year, collect_death).in_set(GamePlay::Spawn),
                 (update_stats, print_stats)
                     .chain()
                     .run_if(on_timer(Duration::from_secs(3)))
-                    .in_set(GamePlay::AfterBattle),
+                    .in_set(GamePlay::Finish),
             ),
         );
 }

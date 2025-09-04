@@ -36,8 +36,8 @@ pub fn cultivation_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            Cultivation::try_advance.in_set(GamePlay::PreBattle),
-            Cultivation::increase_cultivation.in_set(GamePlay::AfterBattle),
+            Cultivation::try_advance.in_set(GamePlay::Spawn),
+            Cultivation::increase_cultivation.in_set(GamePlay::Finish),
         ),
     );
 }

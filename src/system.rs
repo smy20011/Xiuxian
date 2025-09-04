@@ -2,17 +2,19 @@ use bevy::prelude::*;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GamePlay {
-    PreBattle,
+    Spawn,
+    Pair,
     Battle,
-    AfterBattle,
+    Finish,
 }
 
 pub fn game_system(app: &mut App) {
     app.configure_sets(
         Update,
         (
-            GamePlay::Battle.after(GamePlay::PreBattle),
-            GamePlay::AfterBattle.after(GamePlay::Battle),
+            GamePlay::Pair.after(GamePlay::Spawn),
+            GamePlay::Battle.after(GamePlay::Pair),
+            GamePlay::Finish.after(GamePlay::Battle),
         ),
     );
 }
