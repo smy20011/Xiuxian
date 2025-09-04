@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
 use crate::system::GamePlay;
+use bevy::prelude::*;
 
 #[derive(Resource)]
 struct Benchmark {

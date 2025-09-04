@@ -1,6 +1,7 @@
 use bevy::{ecs::query::QueryData, prelude::*};
 use bevy_prng::WyRand;
 use bevy_rand::global::GlobalEntropy;
+use itertools::Itertools;
 use rand::Rng;
 use rand::seq::SliceRandom;
 
@@ -9,7 +10,7 @@ use crate::life::Life;
 use crate::system::GamePlay;
 
 #[derive(Component)]
-pub struct Battle {
+pub struct Courage {
     pub courage: f64,
 }
 
@@ -17,45 +18,62 @@ pub struct Battle {
 #[query_data(mutable)]
 pub struct BattleQuery {
     cultivation: &'static mut Cultivation,
-    battle: &'static Battle,
+    battle: &'static Courage,
     life: &'static mut Life,
     entity: Entity,
 }
 
-fn will_battle(a: &BattleQueryItem, b: &BattleQueryItem) -> bool {
+fn will_battle(a: &BattleQueryReadOnlyItem, b: &BattleQueryReadOnlyItem) -> bool {
     let win_rate = a.cultivation.get_win_rate(&b.cultivation);
     a.battle.courage > 1.0 - win_rate
 }
 
-fn battle(mut rng: GlobalEntropy<WyRand>, mut query: Query<BattleQuery>) {
-    let mut players: Vec<BattleQueryItem> = query.iter_mut().collect();
-    let mut battles: Vec<[usize; 2]> = Vec::new();
+#[derive(Resource, Default)]
+struct BattlePair(Vec<(Entity, Entity)>);
+
+fn pair(query: Query<BattleQuery>, mut rng: GlobalEntropy<WyRand>, mut pairs: ResMut<BattlePair>) {
+    let mut players: Vec<_> = query.iter().map(|i| i.entity).collect();
     players.shuffle(&mut rng);
+    pairs.0 = players.chunks_exact(2).map(|l| (l[0], l[1])).collect();
+}
 
-    for i in 0..(players.len() / 2) {
-        let a = &players[i];
-        let b = &players[players.len() - i - 1];
-        if a.cultivation.level == b.cultivation.level && (will_battle(a, b) || will_battle(b, a)) {
-            battles.push([i, players.len() - i - 1]);
+fn filter_battle(
+    data: Query<BattleQueryReadOnly>,
+    mut pairs: ResMut<BattlePair>,
+) {
+    pairs.0 = pairs.0.iter().filter(|(a, b)| {
+        let (a, b) = (data.get(*a).unwrap(), data.get(*b).unwrap());
+        if a.cultivation.level != b.cultivation.level {
+            return false;
         }
-    }
+        will_battle(&a, &b) || will_battle(&b, &a)
+    }).cloned().collect();
+}
 
-    for p in battles {
+fn battle(
+    mut rng: GlobalEntropy<WyRand>,
+    mut data: Query<BattleQuery>,
+    battles: Res<BattlePair>,
+) {
+    for pair in &battles.0 {
         let prob: f64 = rng.random();
-        let mut pair = p.clone();
-        if prob
-            > players[p[0]]
-                .cultivation
-                .get_win_rate(&players[p[1]].cultivation)
-        {
-            pair.reverse();
+        let [mut winner, mut loser] = data.get_many_mut([pair.0, pair.1]).unwrap();
+        if prob > winner.cultivation.get_win_rate(&loser.cultivation) {
+            (winner, loser) = (loser, winner);
         }
-        let [winner, loser] = players.get_disjoint_mut(pair).unwrap();
         winner.cultivation.cultivation += loser.cultivation.cultivation / 10;
         loser.life.alive = false;
     }
 }
 
 pub fn battle_plugin(app: &mut App) {
-    app.add_systems(Update, battle.in_set(GamePlay::Battle));
+    app.init_resource::<BattlePair>();
+    app.add_systems(
+        Update,
+        (
+            battle.in_set(GamePlay::Battle),
+            pair.in_set(GamePlay::Pair),
+            filter_battle.in_set(GamePlay::FilterPair),
+        ),
+    );
 }

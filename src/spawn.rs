@@ -3,17 +3,17 @@ use bevy_prng::WyRand;
 use bevy_rand::global::GlobalEntropy;
 use rand::Rng;
 
-use crate::Battle;
 use crate::Cultivation;
 use crate::Level;
 use crate::Life;
+use crate::battle::Courage;
 use crate::system::GamePlay;
 
 #[derive(Bundle)]
 struct Cultivator {
     life: Life,
     cultivation: Cultivation,
-    battle: Battle,
+    courage: Courage,
 }
 
 #[derive(Event)]
@@ -33,7 +33,7 @@ fn spawn_cultivators(mut command: Commands, mut rng: GlobalEntropy<WyRand>) {
                 level: Level::Foundation,
                 cultivation: 10,
             },
-            battle: Battle {
+            courage: Courage {
                 courage: rng.random(),
             },
         });

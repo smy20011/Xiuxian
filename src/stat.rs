@@ -4,7 +4,7 @@ use core::f64;
 use itertools::Itertools;
 use std::{collections::HashMap, time::Duration};
 
-use crate::battle::Battle;
+use crate::battle::Courage;
 use crate::cultivation::Cultivation;
 use crate::level::Level;
 use crate::life::Life;
@@ -24,7 +24,7 @@ fn increase_year(mut state: ResMut<GlobalState>) {
 struct CultivatorQuery {
     life: &'static Life,
     cultivation: &'static Cultivation,
-    battle: &'static Battle,
+    courage: &'static Courage,
 }
 
 #[derive(Default, Debug)]
@@ -41,7 +41,7 @@ impl PerGroupStatistics {
         let mut result = PerGroupStatistics::default();
         for cult in cultivators {
             result.size += 1;
-            result.courage += cult.battle.courage;
+            result.courage += cult.courage.courage;
             result.cultivation += cult.cultivation.cultivation as f64;
         }
         result.courage /= result.size as f64;
@@ -49,7 +49,6 @@ impl PerGroupStatistics {
         result
     }
 }
-
 
 #[derive(Debug, Default)]
 struct Average {
@@ -104,8 +103,7 @@ fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
     }
     info!(
         "死亡人数: {}，平均寿命: {}",
-        stats.death.total,
-        stats.death.average
+        stats.death.total, stats.death.average
     );
     info!(
         "战斗死亡: {}，平均寿命: {}",
@@ -115,13 +113,9 @@ fn print_stats(stats: Res<XiuxianStatistics>, state: Res<GlobalState>) {
         "年老死亡: {}，平均寿命: {}",
         stats.death_by_age.total, stats.death_by_age.average
     );
-
 }
 
-fn collect_death(
-    mut ev_death: EventReader<DeathEvent>,
-    mut stats: ResMut<XiuxianStatistics>,
-) {
+fn collect_death(mut ev_death: EventReader<DeathEvent>, mut stats: ResMut<XiuxianStatistics>) {
     for ev in ev_death.read() {
         let age = ev.life.age as f64;
         stats.death.digiest(age);

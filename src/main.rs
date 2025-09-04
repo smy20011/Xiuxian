@@ -11,7 +11,7 @@ use crate::cultivation::Cultivation;
 use crate::level::Level;
 use crate::life::Life;
 
-use battle::{Battle, battle_plugin};
+use battle::battle_plugin;
 use benchmark::benchmark_system;
 use bevy::{log::LogPlugin, prelude::*};
 use bevy_prng::WyRand;

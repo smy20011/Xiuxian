@@ -4,6 +4,7 @@ use bevy::prelude::*;
 pub enum GamePlay {
     Spawn,
     Pair,
+    FilterPair,
     Battle,
     Finish,
 }
@@ -13,7 +14,8 @@ pub fn game_system(app: &mut App) {
         Update,
         (
             GamePlay::Pair.after(GamePlay::Spawn),
-            GamePlay::Battle.after(GamePlay::Pair),
+            GamePlay::FilterPair.after(GamePlay::Pair),
+            GamePlay::Battle.after(GamePlay::FilterPair),
             GamePlay::Finish.after(GamePlay::Battle),
         ),
     );
