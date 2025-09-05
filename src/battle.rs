@@ -37,24 +37,22 @@ fn pair(query: Query<BattleQuery>, mut rng: GlobalEntropy<WyRand>, mut pairs: Re
     pairs.0 = players.chunks_exact(2).map(|l| (l[0], l[1])).collect();
 }
 
-fn filter_battle(
-    data: Query<BattleQueryReadOnly>,
-    mut pairs: ResMut<BattlePair>,
-) {
-    pairs.0 = pairs.0.iter().filter(|(a, b)| {
-        let (a, b) = (data.get(*a).unwrap(), data.get(*b).unwrap());
-        if a.cultivation.level != b.cultivation.level {
-            return false;
-        }
-        will_battle(&a, &b) || will_battle(&b, &a)
-    }).cloned().collect();
+fn filter_battle(data: Query<BattleQueryReadOnly>, mut pairs: ResMut<BattlePair>) {
+    pairs.0 = pairs
+        .0
+        .iter()
+        .filter(|(a, b)| {
+            let (a, b) = (data.get(*a).unwrap(), data.get(*b).unwrap());
+            if a.cultivation.level != b.cultivation.level {
+                return false;
+            }
+            will_battle(&a, &b) || will_battle(&b, &a)
+        })
+        .cloned()
+        .collect();
 }
 
-fn battle(
-    mut rng: GlobalEntropy<WyRand>,
-    mut data: Query<BattleQuery>,
-    battles: Res<BattlePair>,
-) {
+fn battle(mut rng: GlobalEntropy<WyRand>, mut data: Query<BattleQuery>, battles: Res<BattlePair>) {
     for pair in &battles.0 {
         let prob: f64 = rng.random();
         let [mut winner, mut loser] = data.get_many_mut([pair.0, pair.1]).unwrap();

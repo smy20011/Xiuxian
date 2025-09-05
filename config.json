@@ -1,0 +1,15 @@
+{
+  "cult_default": 10,
+  "cult_per_year": 1,
+  "lifespan": {
+    "start": 100,
+    "a": 800,
+    "b": 10
+  },
+  "lvup": {
+    "start": 10,
+    "a": 90,
+    "b": 10
+  },
+  "spawn_per_year": 100
+}

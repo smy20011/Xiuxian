@@ -1,5 +1,6 @@
 mod battle;
 mod benchmark;
+mod config;
 mod cultivation;
 mod level;
 mod life;
@@ -16,6 +17,7 @@ use benchmark::benchmark_system;
 use bevy::{log::LogPlugin, prelude::*};
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
+use config::config_plugin;
 use cultivation::cultivation_plugin;
 use life::life_plugin;
 use spawn::spawn_plugin;
@@ -27,6 +29,7 @@ fn main() {
         .add_plugins(MinimalPlugins)
         .add_plugins(LogPlugin::default())
         .add_plugins(EntropyPlugin::<WyRand>::default())
+        .add_plugins(config_plugin)
         .add_plugins(game_system)
         .add_plugins(life_plugin)
         .add_plugins(cultivation_plugin)
