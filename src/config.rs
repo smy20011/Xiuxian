@@ -8,7 +8,6 @@ use crate::level::Level;
 
 static CONFIG_DIR: &'static str = "config.json";
 
-
 // Sequence in form of A_n = A_(n-1) + a * b ^ (n-1)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Sequence {
@@ -37,8 +36,16 @@ impl Default for Config {
         Config {
             cult_default: 10,
             cult_per_year: 1,
-            lifespan: Sequence { start: 100, a: 800, b: 10 },
-            lvup: Sequence { start: 10, a: 90, b: 10 },
+            lifespan: Sequence {
+                start: 100,
+                a: 800,
+                b: 10,
+            },
+            lvup: Sequence {
+                start: 10,
+                a: 90,
+                b: 10,
+            },
             spawn_per_year: 100,
         }
     }
@@ -61,7 +68,11 @@ fn read_config_system(mut config: ResMut<Config>) {
     }
     match read_config(CONFIG_DIR) {
         Ok(c) => *config = c,
-        Err(e) => info!("Failed to read config from path {}, error: {}", CONFIG_DIR, e.to_string())
+        Err(e) => info!(
+            "Failed to read config from path {}, error: {}",
+            CONFIG_DIR,
+            e.to_string()
+        ),
     }
     Level::update(&config);
 }

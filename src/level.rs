@@ -15,8 +15,10 @@ pub enum Level {
 }
 
 lazy_static! {
-    static ref REQUIRED_CULTIVATION: RwLock<Vec<u64>> = RwLock::new(vec![10, 100, 1000, 10000, 100000, 1000000, 10000000]);
-    static ref TOTAL_LIFESPAN: RwLock<Vec<u64>> = RwLock::new(vec![100, 900, 8900, 88900, 888900, 8888900, 88888900]);
+    static ref REQUIRED_CULTIVATION: RwLock<Vec<u64>> =
+        RwLock::new(vec![10, 100, 1000, 10000, 100000, 1000000, 10000000]);
+    static ref TOTAL_LIFESPAN: RwLock<Vec<u64>> =
+        RwLock::new(vec![100, 900, 8900, 88900, 888900, 8888900, 88888900]);
 }
 
 impl Level {
@@ -90,7 +92,7 @@ mod tests {
         Level::update(&Config::default());
         let current;
         {
-            current =  TOTAL_LIFESPAN.read().unwrap().clone();
+            current = TOTAL_LIFESPAN.read().unwrap().clone();
         }
         assert_eq!(original, current)
     }
@@ -104,9 +106,8 @@ mod tests {
         Level::update(&Config::default());
         let current;
         {
-            current =  REQUIRED_CULTIVATION.read().unwrap().clone();
+            current = REQUIRED_CULTIVATION.read().unwrap().clone();
         }
         assert_eq!(original, current)
     }
-
 }
