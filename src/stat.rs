@@ -141,3 +141,67 @@ pub fn stat_plugin(app: &mut App) {
             ),
         );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_per_group_statistics() {
+        let mut world = World::new();
+        world.spawn((
+            Life { age: 20, lifespan: 100, alive: true },
+            Cultivation { level: Level::Foundation, cultivation: 10 },
+            Courage { courage: 0.5 },
+        ));
+        world.spawn((
+            Life { age: 20, lifespan: 100, alive: true },
+            Cultivation { level: Level::Foundation, cultivation: 20 },
+            Courage { courage: 0.7 },
+        ));
+
+        let mut query = world.query::<CultivatorQuery>();
+        let items: Vec<_> = query.iter(&world).collect();
+        let stats = PerGroupStatistics::new(&items);
+
+        assert_eq!(stats.size, 2);
+        assert_eq!(stats.courage, 0.6);
+        assert_eq!(stats.cultivation, 15.0);
+    }
+
+    #[test]
+    fn test_average() {
+        let mut avg = Average::default();
+        avg.digiest(10.0);
+        avg.digiest(20.0);
+        avg.digiest(30.0);
+        assert_eq!(avg.total, 3);
+        assert_eq!(avg.average, 20.0);
+    }
+
+    #[test]
+    fn test_collect_death() {
+        let mut app = App::new();
+        app.add_event::<DeathEvent>();
+        app.init_resource::<XiuxianStatistics>();
+        app.add_systems(Update, collect_death);
+
+        let mut death_events = app.world_mut().resource_mut::<Events<DeathEvent>>();
+        death_events.send(DeathEvent {
+            life: Life { age: 100, lifespan: 100, alive: false },
+        });
+        death_events.send(DeathEvent {
+            life: Life { age: 50, lifespan: 120, alive: false },
+        });
+
+        app.update();
+
+        let stats = app.world().resource::<XiuxianStatistics>();
+        assert_eq!(stats.death.total, 2);
+        assert_eq!(stats.death.average, 75.0);
+        assert_eq!(stats.death_by_age.total, 1);
+        assert_eq!(stats.death_by_age.average, 100.0);
+        assert_eq!(stats.death_by_battle.total, 1);
+        assert_eq!(stats.death_by_battle.average, 50.0);
+    }
+}
