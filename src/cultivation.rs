@@ -41,3 +41,27 @@ pub fn cultivation_plugin(app: &mut App) {
         ),
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_win_rate() {
+        let cult1 = Cultivation {
+            level: Level::Foundation,
+            cultivation: 100,
+        };
+        let cult2 = Cultivation {
+            level: Level::Foundation,
+            cultivation: 100,
+        };
+        assert_eq!(cult1.get_win_rate(&cult2), 0.5);
+
+        let cult3 = Cultivation {
+            level: Level::Foundation,
+            cultivation: 200,
+        };
+        assert_eq!(cult3.get_win_rate(&cult1), 200.0 / 300.0);
+    }
+}

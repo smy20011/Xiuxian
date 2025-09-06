@@ -75,3 +75,37 @@ pub fn battle_plugin(app: &mut App) {
         ),
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::level::Level;
+
+    #[test]
+    fn test_will_battle() {
+        let mut world = World::new();
+        let a_entity = world.spawn((
+            Cultivation {
+                level: Level::Foundation,
+                cultivation: 100,
+            },
+            Courage { courage: 0.8 },
+            Life { age: 0, lifespan: 100, alive: true },
+        )).id();
+        let b_entity = world.spawn((
+            Cultivation {
+                level: Level::Foundation,
+                cultivation: 100,
+            },
+            Courage { courage: 0.2 },
+            Life { age: 0, lifespan: 100, alive: true },
+        )).id();
+
+        let mut query = world.query::<BattleQuery>();
+        let a = query.get(&world, a_entity).unwrap();
+        let b = query.get(&world, b_entity).unwrap();
+
+        assert!(will_battle(&a, &b));
+        assert!(!will_battle(&b, &a));
+    }
+}

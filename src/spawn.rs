@@ -67,3 +67,37 @@ pub fn spawn_plugin(app: &mut App) {
         ),
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_rand::plugin::EntropyPlugin;
+
+    #[test]
+    fn test_spawn_cultivators() {
+        let mut app = App::new();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.init_resource::<Config>();
+        app.add_systems(Update, spawn_cultivators);
+        app.update();
+
+        let mut query = app.world_mut().query::<(&Life, &Cultivation, &Courage)>();
+        let config = app.world().get_resource::<Config>().unwrap();
+        assert_eq!(query.iter(app.world()).count(), config.spawn_per_year);
+    }
+
+    #[test]
+    fn test_despawn_dead() {
+        let mut app = App::new();
+        app.add_event::<DeathEvent>();
+        let dead_entity = app.world_mut().spawn(Life { age: 100, lifespan: 100, alive: false }).id();
+        let alive_entity = app.world_mut().spawn(Life { age: 50, lifespan: 100, alive: true }).id();
+
+        app.add_systems(Update, despawn_dead);
+        app.update();
+
+        assert!(app.world().get_entity(dead_entity).is_err());
+        assert!(app.world().get_entity(alive_entity).is_ok());
+    }
+}
+

@@ -9,7 +9,7 @@ use crate::level::Level;
 static CONFIG_DIR: &'static str = "config.json";
 
 // Sequence in form of A_n = A_(n-1) + a * b ^ (n-1)
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Sequence {
     pub start: u64,
     pub a: u64,
@@ -22,7 +22,7 @@ impl Sequence {
     }
 }
 
-#[derive(Debug, Resource, Serialize, Deserialize)]
+#[derive(Debug, Resource, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
     pub cult_default: u64,
     pub cult_per_year: u64,
@@ -80,4 +80,34 @@ fn read_config_system(mut config: ResMut<Config>) {
 pub fn config_plugin(app: &mut App) {
     app.init_resource::<Config>();
     app.add_systems(Startup, read_config_system);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_sequence_diff() {
+        let seq = Sequence {
+            start: 10,
+            a: 90,
+            b: 10,
+        };
+        assert_eq!(seq.diff(1), 90);
+        assert_eq!(seq.diff(2), 900);
+        assert_eq!(seq.diff(3), 9000);
+    }
+
+    #[test]
+    fn test_read_write_config() {
+        let config = Config::default();
+        let file = NamedTempFile::new().unwrap();
+        let path = file.path().to_str().unwrap();
+
+        write_config(path, &config).unwrap();
+        let read_config = read_config(path).unwrap();
+
+        assert_eq!(config, read_config);
+    }
 }
